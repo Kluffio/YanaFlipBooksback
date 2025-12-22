@@ -14,9 +14,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
-* { box-sizing:border-box; }
-
-body {
+*{box-sizing:border-box}
+body{
   margin:0;
   background:#111;
   color:#fff;
@@ -24,17 +23,17 @@ body {
   overflow:hidden;
 }
 
-/* ===== SCREENS ===== */
-.screen {
+/* screens */
+.screen{
   position:fixed;
   inset:0;
   display:none;
   flex-direction:column;
 }
-.screen.active { display:flex; }
+.screen.active{display:flex}
 
-/* ===== HEADER ===== */
-header {
+/* header */
+header{
   height:56px;
   background:#000;
   display:flex;
@@ -42,38 +41,34 @@ header {
   justify-content:space-between;
   padding:0 12px;
 }
-
-header button {
+header button{
   margin-left:6px;
   padding:8px 12px;
   border-radius:8px;
   border:none;
-  background:#fff;
 }
 
-/* ===== CONTENT ===== */
-.content {
+/* content */
+.content{
   flex:1;
   overflow-y:auto;
   padding:20px 0;
 }
 
-/* ===== LOGIN ===== */
-#loginScreen {
+/* login */
+#loginScreen{
   justify-content:center;
   align-items:center;
 }
-
-.loginBox {
+.loginBox{
   background:#1c1c1c;
   padding:28px;
   border-radius:16px;
   width:100%;
   max-width:360px;
 }
-
 .loginBox input,
-.loginBox button {
+.loginBox button{
   width:100%;
   padding:14px;
   margin-top:12px;
@@ -81,45 +76,42 @@ header button {
   border-radius:10px;
   border:none;
 }
-
-/* focus / active */
-.loginBox input:focus-visible {
+.loginBox input:focus-visible{
   outline:2px solid #3a82f7;
 }
-.loginBox button {
+.loginBox button{
   background:#3a82f7;
   color:#fff;
 }
-.loginBox button:active {
-  transform:scale(0.98);
-}
+.loginBox button:active{transform:scale(.97)}
 
-/* ===== PDF ===== */
-#pdf {
+/* pdf */
+#pdf{
   display:flex;
   flex-direction:column;
   align-items:center;
 }
-
-.spread {
-  display:flex;
-  gap:4px;
-  margin-bottom:32px;
+.cover{
+  margin-bottom:40px;
 }
-
-canvas {
+.spread{
+  display:flex;
+  gap:6px;
+  margin-bottom:36px;
+}
+canvas{
   background:#fff;
   display:block;
 }
 
-/* ===== ZOOM ===== */
-.zoom {
+/* zoom */
+.zoom{
   position:fixed;
   right:16px;
   bottom:16px;
   z-index:9999;
 }
-.zoom button {
+.zoom button{
   width:44px;
   height:44px;
   font-size:22px;
@@ -128,12 +120,9 @@ canvas {
   margin-top:6px;
 }
 
-/* ===== MOBILE ===== */
-@media (max-width: 700px) {
-  .spread {
-    flex-direction:column;
-    gap:0;
-  }
+/* mobile */
+@media(max-width:700px){
+  .spread{flex-direction:column;gap:0}
 }
 </style>
 </head>
@@ -155,6 +144,7 @@ canvas {
   <header>
     <div>📖 Читалка</div>
     <div>
+      <button id="adminBtn" style="display:none" onclick="showAdmin()">Админка</button>
       <button onclick="logout()">Выйти</button>
     </div>
   </header>
@@ -163,91 +153,152 @@ canvas {
   </div>
 </section>
 
+<!-- ADMIN -->
+<section id="adminScreen" class="screen">
+  <header>
+    <div>⚙ Админка</div>
+    <div>
+      <button onclick="backToReader()">Назад</button>
+      <button onclick="logout()">Выйти</button>
+    </div>
+  </header>
+  <div class="content" id="userList"></div>
+</section>
+
+<!-- ZOOM -->
 <div class="zoom" id="zoom" style="display:none">
   <button onclick="zoomIn()">+</button>
   <button onclick="zoomOut()">−</button>
 </div>
 
 <script>
-/* ===== FIREBASE ===== */
+/* firebase */
 firebase.initializeApp({
-  apiKey: "AIzaSyBI_MW2hD1k5ORHZF_56zVzJvelHSVnvko",
-  authDomain: "book-aed2c.firebaseapp.com",
-  projectId: "book-aed2c"
+  apiKey:"AIzaSyBI_MW2hD1k5ORHZF_56zVzJvelHSVnvko",
+  authDomain:"book-aed2c.firebaseapp.com",
+  projectId:"book-aed2c"
 });
-const auth = firebase.auth();
+const auth=firebase.auth();
+const db=firebase.firestore();
 
-/* ===== STATE ===== */
-let pdfDoc = null;
-let SCALE = window.innerWidth < 700 ? 1.1 : 1.6;
-const isMobile = window.innerWidth < 700;
+/* state */
+let pdfDoc=null;
+let SCALE=window.innerWidth<700?1.1:1.6;
 
-/* ===== LOGIN ===== */
-function login() {
-  auth.signInWithEmailAndPassword(email.value, password.value)
-    .then(() => {
-      loginScreen.classList.remove("active");
-      readerScreen.classList.add("active");
-      zoom.style.display = "block";
-      loadPDF();
-    })
-    .catch(() => alert("Ошибка входа"));
+/* helpers */
+function isLandscape(){
+  return window.innerWidth>window.innerHeight;
 }
 
-function logout() {
+/* login */
+function login(){
+  auth.signInWithEmailAndPassword(email.value,password.value)
+    .then(afterLogin)
+    .catch(()=>alert("Ошибка входа"));
+}
+
+async function afterLogin(){
+  loginScreen.classList.remove("active");
+  readerScreen.classList.add("active");
+  zoom.style.display="block";
+
+  const user=auth.currentUser;
+  const ref=db.collection("users").doc(user.email);
+  const snap=await ref.get();
+  if(snap.exists && snap.data().role==="admin"){
+    adminBtn.style.display="inline-block";
+  }
+
+  loadPDF();
+}
+
+/* logout */
+function logout(){
   auth.signOut();
   location.reload();
 }
 
-/* ===== PDF ===== */
-function loadPDF() {
-  pdfjsLib.getDocument("book.pdf").promise.then(pdf => {
-    pdfDoc = pdf;
+/* screens */
+function showAdmin(){
+  readerScreen.classList.remove("active");
+  adminScreen.classList.add("active");
+  loadUsers();
+}
+function backToReader(){
+  adminScreen.classList.remove("active");
+  readerScreen.classList.add("active");
+}
+
+/* pdf */
+function loadPDF(){
+  pdfjsLib.getDocument("book.pdf").promise.then(pdf=>{
+    pdfDoc=pdf;
     renderAll();
   });
 }
 
-function renderAll() {
-  pdf.innerHTML = "";
+function renderAll(){
+  pdf.innerHTML="";
+  if(!pdfDoc)return;
 
-  if (isMobile) {
-    // 📱 ОДНА СТРАНИЦА
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-      renderPage(i, pdf);
-    }
-  } else {
-    // 🖥 РАЗВОРОТ
-    for (let i = 1; i <= pdfDoc.numPages; i += 2) {
-      const spread = document.createElement("div");
-      spread.className = "spread";
-      renderPage(i, spread);
-      if (i + 1 <= pdfDoc.numPages) renderPage(i + 1, spread);
+  /* 1️⃣ ОБЛОЖКА */
+  renderPage(1,pdf,"cover");
+
+  const mobile=window.innerWidth<700;
+  const spreadMode=!mobile || isLandscape();
+
+  if(spreadMode){
+    for(let i=2;i<=pdfDoc.numPages;i+=2){
+      const spread=document.createElement("div");
+      spread.className="spread";
+      renderPage(i,spread);
+      if(i+1<=pdfDoc.numPages)renderPage(i+1,spread);
       pdf.appendChild(spread);
+    }
+  }else{
+    for(let i=2;i<=pdfDoc.numPages;i++){
+      renderPage(i,pdf);
     }
   }
 }
 
-function renderPage(num, container) {
-  pdfDoc.getPage(num).then(page => {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const dpr = window.devicePixelRatio || 1;
-    const vp = page.getViewport({ scale: SCALE });
-
-    canvas.width = vp.width * dpr;
-    canvas.height = vp.height * dpr;
-    canvas.style.width = vp.width + "px";
-    canvas.style.height = vp.height + "px";
-
+function renderPage(num,container,cls){
+  pdfDoc.getPage(num).then(page=>{
+    const canvas=document.createElement("canvas");
+    if(cls)canvas.className=cls;
+    const ctx=canvas.getContext("2d");
+    const dpr=window.devicePixelRatio||1;
+    const vp=page.getViewport({scale:SCALE});
+    canvas.width=vp.width*dpr;
+    canvas.height=vp.height*dpr;
+    canvas.style.width=vp.width+"px";
+    canvas.style.height=vp.height+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    page.render({ canvasContext: ctx, viewport: vp });
+    page.render({canvasContext:ctx,viewport:vp});
     container.appendChild(canvas);
   });
 }
 
-/* ===== ZOOM ===== */
-function zoomIn() { SCALE += 0.2; renderAll(); }
-function zoomOut() { SCALE = Math.max(0.6, SCALE - 0.2); renderAll(); }
+/* zoom */
+function zoomIn(){SCALE+=0.2;renderAll()}
+function zoomOut(){SCALE=Math.max(.6,SCALE-.2);renderAll()}
+
+/* admin */
+async function loadUsers(){
+  const snap=await db.collection("users").get();
+  userList.innerHTML="";
+  snap.forEach(d=>{
+    userList.innerHTML+=`
+      <div style="border:1px solid #333;padding:12px;border-radius:10px;margin-bottom:10px">
+        <b>${d.id}</b>
+      </div>`;
+  });
+}
+
+/* orientation */
+window.addEventListener("resize",()=>{
+  renderAll();
+});
 </script>
 
 </body>
