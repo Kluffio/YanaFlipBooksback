@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <title>Читалка</title>
 
-<!-- Telegram WebApp -->
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
@@ -15,12 +11,18 @@ html, body {
     margin: 0;
     padding: 0;
     background: #111;
-    color: white;
     height: 100%;
     overflow: hidden;
     user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
+}
+
+#blocked {
+    display: none;
+    color: white;
+    text-align: center;
+    margin-top: 40vh;
+    font-size: 18px;
+    opacity: 0.8;
 }
 
 #viewer {
@@ -28,7 +30,7 @@ html, body {
     overflow-y: auto;
 }
 
-.page-row {
+.row {
     display: flex;
     justify-content: center;
 }
@@ -41,67 +43,67 @@ canvas {
 </head>
 
 <body>
+
+<div id="blocked">Нет доступа</div>
 <div id="viewer"></div>
 
 <script>
-/* ===== Telegram check ===== */
-const tg = window.Telegram.WebApp;
-tg.expand();
+/* ====== СЕКРЕТНЫЙ КЛЮЧ ====== */
+const SECRET_KEY = "hdsfkljgfhdfighikujdfsghiuoergfhieurfgigdfgdsg1123dcfs!";
 
-if (!tg.initDataUnsafe || !tg.initDataUnsafe.user) {
-    document.body.innerHTML =
-        "<h2 style='text-align:center;margin-top:40vh;'>Открывайте через Telegram</h2>";
-    throw new Error("Not Telegram");
+/* ====== ПРОВЕРКА КЛЮЧА ====== */
+const params = new URLSearchParams(window.location.search);
+const key = params.get("key");
+
+if (key !== SECRET_KEY) {
+    document.getElementById("blocked").style.display = "block";
+    throw new Error("Access denied");
 }
 
-/* ===== PDF.js setup ===== */
+// убираем ключ из адресной строки
+history.replaceState({}, "", location.pathname);
+
+/* ====== PDF.js ====== */
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-const PDF_URL = "book.pdf"; // имя PDF
+const PDF_FILE = "book.pdf";
 const viewer = document.getElementById("viewer");
-
 let pdfDoc = null;
-const SCALE = 1.4;
 
-/* ===== helpers ===== */
 function isLandscape() {
     return window.innerWidth > window.innerHeight;
 }
 
-/* ===== render ===== */
 function renderPDF() {
     viewer.innerHTML = "";
-
-    const pagesPerRow = isLandscape() ? 2 : 1;
-    let pageNum = 1;
+    let page = 1;
+    const perRow = isLandscape() ? 2 : 1;
 
     function renderRow() {
-        if (pageNum > pdfDoc.numPages) return;
+        if (page > pdfDoc.numPages) return;
 
         const row = document.createElement("div");
-        row.className = "page-row";
+        row.className = "row";
 
-        for (let i = 0; i < pagesPerRow && pageNum <= pdfDoc.numPages; i++) {
-            const currentPage = pageNum;
+        for (let i = 0; i < perRow && page <= pdfDoc.numPages; i++) {
+            const current = page++;
 
-            pdfDoc.getPage(currentPage).then(page => {
-                const viewport = page.getViewport({ scale: SCALE });
+            pdfDoc.getPage(current).then(p => {
+                const vp = p.getViewport({ scale: 1.4 });
                 const canvas = document.createElement("canvas");
                 const ctx = canvas.getContext("2d");
 
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
+                canvas.width = vp.width;
+                canvas.height = vp.height;
 
                 row.appendChild(canvas);
 
-                page.render({
+                p.render({
                     canvasContext: ctx,
-                    viewport: viewport
+                    viewport: vp
                 });
             });
-
-            pageNum++;
         }
 
         viewer.appendChild(row);
@@ -111,16 +113,13 @@ function renderPDF() {
     renderRow();
 }
 
-/* ===== load PDF ===== */
-pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
+pdfjsLib.getDocument(PDF_FILE).promise.then(pdf => {
     pdfDoc = pdf;
     renderPDF();
 });
 
-/* ===== re-render on rotate ===== */
-window.addEventListener("resize", () => {
-    renderPDF();
-});
+window.addEventListener("resize", renderPDF);
 </script>
+
 </body>
 </html>
