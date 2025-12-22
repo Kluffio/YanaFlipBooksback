@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        /* ЗАЩИТА ОТ ВЫДЕЛЕНИЯ И КОПИРОВАНИЯ */
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            user-select: none; /* Нельзя выделять текст */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        body {
+            background: #1a1a1a;
+            color: #ccc;
+            height: 100vh;
+            overflow: hidden;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* КОНТЕЙНЕР КНИГИ */
+        .viewer-container {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* ХОЛСТ (ТУТ РИСУЕТСЯ СТРАНИЦА) */
+        canvas {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 100%;
+            display: block;
+        }
+
+        /* ПАНЕЛЬ УПРАВЛЕНИЯ */
+        .toolbar {
+            height: 50px;
+            background: #2b2b2b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            border-top: 1px solid #333;
+            z-index: 10;
+        }
+
+        button {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #555; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .page-num { font-family: monospace; }
+
+        /* ЭКРАН ЗАГРУЗКИ */
+        .loader-screen {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .progress-bar {
+            width: 300px;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #3498db;
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        /* ВОДЯНОЙ ЗНАК (Опционально) */
+        .watermark {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 80px;
+            color: rgba(255,255,255,0.03);
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ЗАГРУЗЧИК -->
+    <div id="loader" class="loader-screen">
+        <div id="loaderText">Подключение...</div>
+        <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">Загрузка защищенного канала</div>
+    </div>
+
+    <!-- ПРОСМОТРЩИК -->
+    <div class="viewer-container" id="viewerContainer">
+        <canvas id="the-canvas"></canvas>
+        <div class="watermark">CONFIDENTIAL</div>
+    </div>
+
+    <!-- ИНСТРУМЕНТЫ -->
+    <div class="toolbar">
+        <button onclick="prevPage()">◀</button>
+        <span class="page-num" id="pageInfo">-- / --</span>
+        <button onclick="nextPage()">▶</button>
+        <div style="width:1px; height:20px; background:#555"></div>
+        <button onclick="zoom(-0.2)">-</button>
+        <button onclick="zoom(0.2)">+</button>
+    </div>
+
+    <script>
+        // ==========================================
+        // НАСТРОЙКИ (МЕНЯТЬ ТОЛЬКО ТУТ)
+        // ==========================================
+        
+        // ВНИМАНИЕ: Залейте PDF на GitHub Pages в ту же папку, где лежит index.html
+        // Переименуйте PDF в 'system_core.dat' (чтобы никто не догадался)
+        const FILENAME = 'system_core.dat'; 
+
+        // ==========================================
+        
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let pageNum = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+        let scale = 1.2;
+        const canvas = document.getElementById('the-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('viewerContainer');
+
+        // === 1. ЗАЩИЩЕННАЯ ЗАГРУЗКА (Fetch Blob) ===
+        // Мы не даем PDF.js ссылку, мы сами качаем файл как "мусор", 
+        // превращаем в память и скармливаем библиотеке.
+        async function loadDocument() {
+            const loader = document.getElementById('loader');
+            const pText = document.getElementById('loaderText');
+            const pFill = document.getElementById('progressFill');
+
+            try {
+                pText.textContent = "Инициализация потока...";
+                
+                // Качаем файл с отслеживанием прогресса (важно для 50мб)
+                const response = await fetch(FILENAME);
+                
+                if (!response.ok) throw new Error("Файл не найден (404)");
+
+                const contentLength = response.headers.get('content-length');
+                const total = parseInt(contentLength, 10);
+                let loaded = 0;
+
+                const reader = response.body.getReader();
+                const chunks = [];
+
+                while(true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    loaded += value.length;
+                    
+                    if (total) {
+                        const percent = Math.round((loaded / total) * 100);
+                        pFill.style.width = percent + '%';
+                        pText.textContent = `Загрузка данных: ${percent}%`;
+                    }
+                }
+
+                // Склеиваем кусочки
+                const blob = new Blob(chunks);
+                const url = URL.createObjectURL(blob); // Временная ссылка в памяти
+
+                // Отдаем PDF.js
+                pText.textContent = "Дешифровка и рендеринг...";
+                const loadingTask = pdfjsLib.getDocument(url);
+                pdfDoc = await loadingTask.promise;
+                
+                // Чистим память и UI
+                URL.revokeObjectURL(url); 
+                document.getElementById('pageInfo').textContent = `${pageNum} / ${pdfDoc.numPages}`;
+                renderPage(pageNum);
+                loader.style.display = 'none';
+
+            } catch (error) {
+                console.error(error);
+                pText.innerHTML = `<span style="color:red">Ошибка доступа</span><br><br>
+                1. Проверьте, что файл <b>${FILENAME}</b> лежит рядом с index.html<br>
+                2. Если запускаете на ПК, нужен локальный сервер (или залейте на GitHub Pages).`;
+            }
+        }
+
+        // === 2. ОТРИСОВКА (Только пиксели, никакого текста) ===
+        function renderPage(num) {
+            pageRendering = true;
+            
+            pdfDoc.getPage(num).then(function(page) {
+                // Адаптивный зум при первом запуске
+                let viewport = page.getViewport({scale: scale});
+                
+                // Если картинка шире экрана, подгоняем
+                if (viewport.width > container.clientWidth) {
+                    const ratio = (container.clientWidth - 40) / viewport.width;
+                    scale = scale * ratio;
+                    viewport = page.getViewport({scale: scale});
+                }
+
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                
+                const renderTask = page.render(renderContext);
+
+                renderTask.promise.then(function() {
+                    pageRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+            });
+
+            document.getElementById('pageInfo').textContent = `${num} / ${pdfDoc.numPages}`;
+        }
+
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        }
+
+        function prevPage() {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        }
+
+        function nextPage() {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
+
+        function zoom(delta) {
+            scale += delta;
+            if (scale < 0.5) scale = 0.5;
+            queueRenderPage(pageNum);
+        }
+
+        // === 3. ЗАЩИТНЫЕ МЕХАНИЗМЫ ===
+        
+        // Блокируем правый клик
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        // Блокируем горячие клавиши (Ctrl+S, Ctrl+P, F12)
+        document.addEventListener('keydown', function(e) {
+            if (
+                (e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'u')) || // Save, Print, Source
+                e.key === 'F12' || 
+                (e.ctrlKey && e.shiftKey && e.key === 'I')
+            ) {
+                e.preventDefault();
+                alert('Функция отключена политикой безопасности.');
+            }
+        });
+
+        // Запуск
+        loadDocument();
+
+    </script>
+</body>
+</html>
