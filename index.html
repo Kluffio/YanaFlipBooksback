@@ -1,284 +1,155 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Книга</title>
-    <!-- Библиотеки PDF -->
-    <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-    <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js"></script>
-    <style>
-        /* === БАЗА === */
-        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: pan-y; }
-        body { background: #1e1e1e; height: 100vh; overflow: hidden; font-family: sans-serif; }
-        
-        .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; flex-direction: column; }
-        .active { display: flex; }
+<meta charset="UTF-8">
+<title>Читалка</title>
 
-        /* === ВХОД === */
-        .login-box {
-            margin: auto; background: #2d2d2d; padding: 30px; border-radius: 15px;
-            text-align: center; color: white; width: 90%; max-width: 350px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        }
-        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 8px; border: none; font-size: 16px; }
-        .btn { width: 100%; padding: 15px; background: #007AFF; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        .btn:disabled { background: #555; }
+<!-- Firebase (compat, БЕЗ module) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-        /* === ЧИТАЛКА === */
-        .reader-ui { 
-            flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; 
-            background: #111;
-        }
-        
-        /* Разворот страниц */
-        .book-spread {
-            display: flex; align-items: center; justify-content: center;
-            gap: 0; /* Страницы вплотную */
-            box-shadow: 0 5px 30px rgba(0,0,0,0.5);
-            transition: opacity 0.2s;
-        }
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-        canvas { display: block; background: white; }
-
-        /* === КНОПКИ НАВИГАЦИИ (СТРЕЛКИ ПО БОКАМ) === */
-        .nav-arrow {
-            position: absolute; top: 0; bottom: 0; width: 15%; /* Широкая зона нажатия */
-            background: transparent; border: none; cursor: pointer; z-index: 50;
-            display: flex; align-items: center; justify-content: center;
-            color: rgba(255,255,255,0.3); font-size: 40px; user-select: none;
-            transition: color 0.2s, background 0.2s;
-        }
-        .nav-prev { left: 0; }
-        .nav-next { right: 0; }
-        
-        /* При наведении или нажатии подсвечиваем */
-        .nav-arrow:active, .nav-arrow:hover {
-            background: rgba(255,255,255,0.05);
-            color: rgba(255,255,255,0.8);
-        }
-
-        /* === НИЖНЯЯ ПАНЕЛЬ === */
-        .controls {
-            height: 60px; background: #1c1c1e; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; z-index: 100; border-top: 1px solid #333;
-        }
-        .btn-icon {
-            background: #333; color: white; border: none; width: 40px; height: 40px; border-radius: 8px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-        }
-        .page-counter { color: #aaa; font-family: monospace; font-size: 14px; }
-        
-        /* === ЗАГРУЗКА === */
-        .loader { position: absolute; top:0; left:0; width:100%; height:100%; background:#1e1e1e; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #888; }
-        .progress { width: 200px; height: 4px; background: #333; margin-top: 15px; border-radius: 2px; }
-        .bar { width: 0%; height: 100%; background: #007AFF; transition: width 0.2s; }
-    </style>
+<style>
+body {
+  background:#111;
+  color:#fff;
+  font-family:sans-serif;
+  text-align:center;
+}
+input, button {
+  padding:12px;
+  margin:6px;
+  font-size:16px;
+}
+.hidden {
+  display:none;
+}
+canvas {
+  display:block;
+  margin:10px auto;
+}
+</style>
 </head>
+
 <body>
 
-    <!-- ЭКРАН ВХОДА -->
-    <div id="loginScreen" class="screen active">
-        <div class="login-box">
-            <h2>🔐 Вход</h2>
-            <br>
-            <input type="text" id="l_login" placeholder="Логин">
-            <input type="password" id="l_pass" placeholder="Пароль">
-            <button id="loginBtn" class="btn" onclick="login()">Открыть книгу</button>
-            <div id="error" style="color:#ff453a; margin-top:10px; font-size:14px;"></div>
-        </div>
-    </div>
+<h2 id="title">Вход</h2>
 
-    <!-- ЭКРАН КНИГИ -->
-    <div id="bookScreen" class="screen">
-        <div class="reader-ui" id="viewport">
-            <!-- Стрелки по бокам (работают и на телефоне) -->
-            <button class="nav-arrow nav-prev" onclick="changePage(-1)">❮</button>
-            <button class="nav-arrow nav-next" onclick="changePage(1)">❯</button>
-            
-            <!-- Место для страниц -->
-            <div id="spread" class="book-spread"></div>
-            
-            <!-- Загрузчик -->
-            <div id="loader" class="loader" style="display:none">
-                <div id="loaderText">Скачивание книги...</div>
-                <div class="progress"><div class="bar" id="pBar"></div></div>
-            </div>
-        </div>
+<div id="loginBox">
+  <input id="email" placeholder="email"><br>
+  <input id="password" type="password" placeholder="пароль"><br>
+  <button onclick="login()">Войти</button>
+</div>
 
-        <div class="controls">
-            <!-- Кнопка переключения вида: 1 стр / 2 стр -->
-            <button class="btn-icon" onclick="toggleMode()" id="modeBtn">📖</button>
-            
-            <span class="page-counter" id="pageInfo">0/0</span>
-            
-            <button class="btn-icon" style="font-size: 14px" onclick="logout()">Выход</button>
-        </div>
-    </div>
+<div id="adminBox" class="hidden">
+  <h3>Админка</h3>
+  <input id="newEmail" placeholder="email пользователя">
+  <input id="newPass" placeholder="пароль">
+  <button onclick="createUser()">Добавить</button>
+</div>
 
-    <script>
-        // === НАСТРОЙКИ ===
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7WCduakFRoipv2nOY2f93txxy5oKuQoKZzsZLNvtaBhJpqmXAbNekcCtCLKw6Guh18Q/exec';
-        const FILE = 'system_core.dat'; // Имя файла 57 МБ
-        
-        let pdfDoc = null;
-        let pageNum = 1;
-        let isDualPage = true; // По умолчанию стараемся показывать разворот
-        let isRendering = false;
+<div id="readerBox" class="hidden">
+  <h3>Книга</h3>
+  <div id="pdf"></div>
+</div>
 
-        window.onload = () => {
-            if(localStorage.getItem('auth')) showBook();
-            window.addEventListener('resize', () => { if(pdfDoc) render(); });
-        };
+<script>
+/* ===== FIREBASE CONFIG ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBI_MW2hD1k5ORHZF_56zVzJvelHSVnvko",
+  authDomain: "book-aed2c.firebaseapp.com",
+  projectId: "book-aed2c",
+  storageBucket: "book-aed2c.firebasestorage.app",
+  messagingSenderId: "716387198860",
+  appId: "1:716387198860:web:6a80d398dbe4dd64ded8a9"
+};
 
-        // === ВХОД ===
-        async function login() {
-            const l = document.getElementById('l_login').value.trim();
-            const p = document.getElementById('l_pass').value.trim();
-            const btn = document.getElementById('loginBtn');
-            const err = document.getElementById('error');
+firebase.initializeApp(firebaseConfig);
 
-            if(!l || !p) return;
-            btn.disabled = true; btn.textContent = 'Проверка...'; err.textContent = '';
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-            try {
-                const response = await fetch(`${APPS_SCRIPT_URL}?login=${encodeURIComponent(l)}&pass=${encodeURIComponent(p)}`);
-                const result = await response.text();
-                if(result.includes("SUCCESS")) {
-                    localStorage.setItem('auth', 'true');
-                    showBook();
-                } else {
-                    err.textContent = 'Неверно'; btn.disabled = false; btn.textContent = 'Открыть книгу';
-                }
-            } catch(e) {
-                err.textContent = 'Ошибка сети'; btn.disabled = false; btn.textContent = 'Открыть книгу';
-            }
-        }
+/* ===== ЛОГИН ===== */
+function login() {
+  auth.signInWithEmailAndPassword(
+    email.value,
+    password.value
+  )
+  .then(afterLogin)
+  .catch(() => alert("Неверный логин или пароль"));
+}
 
-        function showBook() {
-            document.getElementById('loginScreen').classList.remove('active');
-            document.getElementById('bookScreen').classList.add('active');
-            loadPDF();
-        }
+async function afterLogin() {
+  const user = auth.currentUser;
+  const ref = db.collection("users").doc(user.email);
+  const snap = await ref.get();
 
-        function logout() { localStorage.removeItem('auth'); location.reload(); }
+  if (!snap.exists) {
+    await ref.set({ role: "user", logins: 0 });
+  }
 
-        // === ЗАГРУЗКА ===
-        async function loadPDF() {
-            if(pdfDoc) return;
-            const loader = document.getElementById('loader');
-            const bar = document.getElementById('pBar');
-            loader.style.display = 'flex';
+  await ref.update({
+    logins: firebase.firestore.FieldValue.increment(1),
+    lastLogin: new Date(),
+    browser: navigator.userAgent
+  });
 
-            try {
-                const response = await fetch(FILE);
-                if (!response.ok) throw new Error('Файл не найден');
-                const total = parseInt(response.headers.get('content-length'), 10);
-                let loaded = 0;
-                const reader = response.body.getReader();
-                const chunks = [];
-                while(true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-                    chunks.push(value);
-                    loaded += value.length;
-                    if(total) bar.style.width = Math.round((loaded/total)*100) + '%';
-                }
-                const blob = new Blob(chunks, {type: 'application/pdf'});
-                const url = URL.createObjectURL(blob);
-                
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-                const task = pdfjsLib.getDocument(url);
-                pdfDoc = await task.promise;
-                loader.style.display = 'none';
-                
-                // Авто-выбор режима: если телефон вертикально - 1 стр, иначе 2
-                if(window.innerWidth < window.innerHeight) isDualPage = false;
-                
-                render();
-            } catch(e) { alert('Ошибка: ' + e.message); }
-        }
+  loginBox.classList.add("hidden");
+  readerBox.classList.remove("hidden");
+  title.innerText = "Читалка";
 
-        // === РЕНДЕРИНГ (РАЗВОРОТЫ) ===
-        async function render() {
-            if(!pdfDoc || isRendering) return;
-            isRendering = true;
+  const data = (await ref.get()).data();
+  if (data.role === "admin") {
+    adminBox.classList.remove("hidden");
+  }
 
-            const spreadEl = document.getElementById('spread');
-            spreadEl.innerHTML = '';
-            spreadEl.style.opacity = '0'; // Плавное появление
+  loadPDF();
+}
 
-            // Кнопка режима
-            document.getElementById('modeBtn').textContent = isDualPage ? '📄' : '📖';
+/* ===== PDF ===== */
+function loadPDF() {
+  const url = "book.pdf"; // файл рядом с index.html
 
-            // Если разворот включен, но страница первая - показываем одну (обложку)
-            const showTwo = isDualPage && pageNum > 1 && pageNum < pdfDoc.numPages;
+  pdfjsLib.getDocument(url).promise.then(pdf => {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      pdf.getPage(i).then(page => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const viewport = page.getViewport({ scale: 1.5 });
 
-            await renderCanvas(pageNum, spreadEl, showTwo);
-            
-            if (showTwo) {
-                await renderCanvas(pageNum + 1, spreadEl, showTwo);
-                document.getElementById('pageInfo').textContent = `${pageNum}-${pageNum+1} / ${pdfDoc.numPages}`;
-            } else {
-                document.getElementById('pageInfo').textContent = `${pageNum} / ${pdfDoc.numPages}`;
-            }
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-            spreadEl.style.opacity = '1';
-            isRendering = false;
-        }
+        page.render({
+          canvasContext: ctx,
+          viewport: viewport
+        });
 
-        async function renderCanvas(num, parent, isTwo) {
-            const page = await pdfDoc.getPage(num);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            const viewportRaw = page.getViewport({scale: 1});
-            
-            // Расчет размеров
-            const container = document.getElementById('viewport');
-            let availW = container.clientWidth;
-            const availH = container.clientHeight;
+        document.getElementById("pdf").appendChild(canvas);
+      });
+    }
+  });
+}
 
-            if(isTwo) availW = availW / 2;
+/* ===== АДМИН ===== */
+function createUser() {
+  auth.createUserWithEmailAndPassword(
+    newEmail.value,
+    newPass.value
+  )
+  .then(() => {
+    db.collection("users").doc(newEmail.value).set({
+      role: "user",
+      logins: 0
+    });
+    alert("Пользователь создан");
+  })
+  .catch(() => alert("Ошибка создания пользователя"));
+}
+</script>
 
-            // Масштабируем так, чтобы страница влезла целиком (contain)
-            const scaleW = availW / viewportRaw.width;
-            const scaleH = availH / viewportRaw.height;
-            const scale = Math.min(scaleW, scaleH) * 0.95; // 0.95 для небольшого отступа
-
-            // Высокое качество (Retina)
-            const pixelRatio = window.devicePixelRatio || 1;
-            const viewport = page.getViewport({scale: scale * pixelRatio});
-
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            canvas.style.width = `${viewport.width / pixelRatio}px`;
-            canvas.style.height = `${viewport.height / pixelRatio}px`;
-
-            parent.appendChild(canvas);
-            await page.render({
-                canvasContext: ctx, 
-                viewport: viewport,
-                transform: [pixelRatio, 0, 0, pixelRatio, 0, 0]
-            }).promise;
-        }
-
-        // Переключение режима (1 стр или 2 стр)
-        function toggleMode() {
-            isDualPage = !isDualPage;
-            // Если включили разворот, убедимся что левая страница четная или первая
-            if(isDualPage && pageNum % 2 !== 0 && pageNum !== 1) pageNum--;
-            render();
-        }
-
-        function changePage(delta) {
-            if(!pdfDoc) return;
-            const step = (isDualPage && pageNum > 1) ? 2 : 1;
-            const newPage = pageNum + (delta * step);
-            
-            if(newPage >= 1 && newPage <= pdfDoc.numPages) {
-                pageNum = newPage;
-                render();
-            }
-        }
-    </script>
 </body>
 </html>
