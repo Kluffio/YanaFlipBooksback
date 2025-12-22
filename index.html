@@ -7,68 +7,91 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         /* === СТИЛИ === */
-        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #eee; height: 100vh; overflow: hidden; }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #121212; color: #eee; height: 100vh; overflow: hidden; }
         
-        /* СИСТЕМА ЭКРАНОВ */
         .screen { display: none; height: 100%; width: 100%; position: absolute; top: 0; left: 0; flex-direction: column; }
         .active { display: flex; }
 
-        /* ЭКРАН ВХОДА */
-        .login-container { align-items: center; justify-content: center; background: radial-gradient(circle at center, #1e272e 0%, #000000 100%); }
+        /* ВХОД */
+        .login-container { align-items: center; justify-content: center; background: #000; }
         .login-box {
-            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
-            padding: 40px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
-            width: 320px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            background: #1e1e1e; padding: 30px; border-radius: 12px;
+            width: 90%; max-width: 350px; text-align: center; border: 1px solid #333;
         }
-        .login-box h2 { margin-bottom: 20px; font-weight: 300; letter-spacing: 1px; color: #fff; }
         input {
-            width: 100%; padding: 12px; margin: 10px 0;
-            background: rgba(0,0,0,0.4); border: 1px solid #444;
-            color: white; border-radius: 8px; outline: none; transition: 0.3s;
+            width: 100%; padding: 14px; margin: 8px 0;
+            background: #333; border: 1px solid #444;
+            color: white; border-radius: 8px; outline: none; font-size: 16px;
         }
-        input:focus { border-color: #3498db; background: rgba(0,0,0,0.6); }
         .btn {
-            width: 100%; padding: 12px; margin-top: 15px;
-            background: #3498db; color: white; border: none;
-            border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px;
-            transition: 0.2s;
+            width: 100%; padding: 14px; margin-top: 15px;
+            background: #007AFF; color: white; border: none;
+            border-radius: 8px; font-weight: bold; font-size: 16px;
         }
-        .btn:hover { background: #2980b9; transform: translateY(-1px); }
-        .error-msg { color: #ff6b6b; font-size: 13px; margin-top: 15px; min-height: 18px; }
-
-        /* АДМИНКА */
-        .admin-panel { background: #1a1a1a; padding: 20px; overflow-y: auto; }
-        .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 15px; }
-        .card { background: #252525; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-        .user-list { max-height: 400px; overflow-y: auto; margin-top: 15px; }
-        .user-item { 
-            display: flex; justify-content: space-between; align-items: center;
-            background: #333; padding: 12px; margin-bottom: 8px; border-radius: 6px; 
-        }
-        .del-btn { background: #e74c3c; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 0; width: auto; }
+        .error-msg { color: #ff453a; font-size: 14px; margin-top: 15px; min-height: 20px; }
 
         /* ЧИТАЛКА */
-        .reader-container { background: #000; }
-        .toolbar {
-            height: 50px; background: #252525; border-bottom: 1px solid #333;
-            display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 10;
+        .reader-container { background: #000; position: relative; }
+        
+        /* Область просмотра */
+        .viewport { 
+            flex: 1; 
+            overflow: auto; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start; /* Важно для скролла */
+            padding: 10px; 
+            -webkit-overflow-scrolling: touch;
         }
-        .tool-btn { background: transparent; border: 1px solid #444; color: #ccc; padding: 6px 14px; border-radius: 4px; cursor: pointer; }
-        .tool-btn:hover { background: #333; color: white; }
-        .page-info { font-family: monospace; color: #888; font-size: 14px; }
-        .viewport { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 20px; position: relative; }
-        canvas { box-shadow: 0 0 40px rgba(0,0,0,0.5); display: block; max-width: 100%; }
 
-        /* ЗАГРУЗЧИК */
+        /* Канвас (Страница) */
+        canvas { 
+            display: block; 
+            max-width: 100%; 
+            height: auto !important; /* Сохраняет пропорции */
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5); 
+        }
+
+        /* Панель управления (Адаптивная) */
+        .toolbar {
+            background: #1c1c1e; border-top: 1px solid #333;
+            padding: 10px 15px; z-index: 100;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        /* Кнопки управления */
+        .ctrl-group { display: flex; gap: 15px; align-items: center; }
+        .tool-btn { 
+            background: #333; color: #fff; border: none; 
+            width: 44px; height: 44px; border-radius: 50%; 
+            font-size: 20px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        .tool-btn:active { background: #555; }
+        .page-info { font-family: monospace; color: #888; font-size: 14px; min-width: 60px; text-align: center; }
+
+        /* Админка (упрощенная) */
+        .admin-panel { background: #1a1a1a; padding: 20px; overflow-y: auto; }
+        .admin-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .user-item { background: #333; padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .del-btn { background: #ff453a; color: white; border: none; padding: 8px 12px; border-radius: 6px; }
+
+        /* Загрузчик */
         .loader-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #121212; z-index: 50;
+            background: #000; z-index: 200;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        .progress-container { width: 300px; height: 6px; background: #333; margin-top: 20px; border-radius: 3px; overflow: hidden; }
-        .progress-bar { width: 0%; height: 100%; background: #3498db; transition: width 0.2s; }
-        .logout-btn-small { background: #c0392b; font-size: 12px; padding: 5px 10px; border-radius: 4px; color: white; border: none; cursor: pointer; position: absolute; right: 20px; }
+        .progress-bar-bg { width: 80%; height: 4px; background: #333; border-radius: 2px; margin-top: 20px; }
+        .progress-bar-fill { width: 0%; height: 100%; background: #007AFF; transition: width 0.2s; }
+
+        /* Мобильные улучшения */
+        @media (max-width: 768px) {
+            .viewport { padding: 0; align-items: center; } /* Центрируем на мобилках */
+            .toolbar { padding-bottom: 20px; } /* Отступ под пальцы */
+            .page-info { font-size: 12px; }
+        }
     </style>
 </head>
 <body>
@@ -76,8 +99,8 @@
     <!-- 1. ВХОД -->
     <div id="loginScreen" class="screen active login-container">
         <div class="login-box">
-            <h2>🔒 Вход</h2>
-            <input type="text" id="loginUser" placeholder="Логин">
+            <h2 style="color:#fff; margin-bottom:20px;">📚 Вход</h2>
+            <input type="text" id="loginUser" placeholder="Логин" autocapitalize="none">
             <input type="password" id="loginPass" placeholder="Пароль">
             <button class="btn" onclick="handleLogin()">Войти</button>
             <div class="error-msg" id="loginError"></div>
@@ -87,66 +110,66 @@
     <!-- 2. АДМИНКА -->
     <div id="adminScreen" class="screen admin-panel">
         <div class="admin-header">
-            <h2>⚙️ Панель управления</h2>
-            <button class="logout-btn-small" style="position: static;" onclick="logout()">Выйти</button>
+            <h2 style="color:#fff">⚙️ Админка</h2>
+            <button class="tool-btn" style="width:auto; padding:0 15px; border-radius:8px; font-size:14px;" onclick="logout()">Выход</button>
         </div>
-
-        <div class="card">
-            <h3 style="margin-bottom: 15px; color: #ddd;">Добавить сотрудника</h3>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="newLogin" placeholder="Логин" style="margin: 0;">
-                <input type="text" id="newPass" placeholder="Пароль" style="margin: 0;">
-            </div>
-            <button class="btn" style="margin-top: 10px;" onclick="addUser()">Создать пользователя</button>
+        <div style="background:#252525; padding:15px; border-radius:10px; margin-bottom:20px;">
+            <input type="text" id="newLogin" placeholder="Новый логин">
+            <input type="text" id="newPass" placeholder="Пароль">
+            <button class="btn" onclick="addUser()">Добавить</button>
         </div>
-
-        <div class="card">
-            <h3 style="margin-bottom: 15px; color: #ddd;">Список пользователей</h3>
-            <div id="userList" class="user-list"></div>
-        </div>
+        <div id="userList"></div>
     </div>
 
     <!-- 3. ЧИТАЛКА -->
     <div id="readerScreen" class="screen reader-container">
-        <div class="toolbar">
-            <button class="tool-btn" onclick="changePage(-1)">◀</button>
-            <span class="page-info" id="pageInfo">0 / 0</span>
-            <button class="tool-btn" onclick="changePage(1)">▶</button>
-            <div style="width:1px; height:20px; background:#444"></div>
-            <button class="tool-btn" onclick="zoom(0.2)">+</button>
-            <button class="tool-btn" onclick="zoom(-0.2)">-</button>
-            <button class="logout-btn-small" onclick="logout()">Выход</button>
+        <!-- Область страниц -->
+        <div class="viewport" id="viewport">
+            <!-- Экран загрузки -->
+            <div id="loader" class="loader-overlay" style="display: none;">
+                <div id="loaderText" style="color:#ccc">Загрузка книги...</div>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBar"></div></div>
+            </div>
+            
+            <canvas id="pdfCanvas"></canvas>
         </div>
 
-        <div class="viewport" id="viewport">
-            <div id="loader" class="loader-overlay" style="display: none;">
-                <div id="loaderText" style="color: #ccc; margin-bottom: 10px;">Загрузка книги...</div>
-                <div class="progress-container">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
+        <!-- Панель управления (Снизу) -->
+        <div class="toolbar">
+            <div class="ctrl-group">
+                <button class="tool-btn" onclick="changePage(-1)">◀</button>
+                <span class="page-info" id="pageInfo">0/0</span>
+                <button class="tool-btn" onclick="changePage(1)">▶</button>
             </div>
-            <canvas id="pdfCanvas"></canvas>
+            
+            <div class="ctrl-group">
+                <button class="tool-btn" onclick="zoom(-0.2)">−</button>
+                <button class="tool-btn" onclick="zoom(0.2)">+</button>
+                <button class="tool-btn" style="background:#ff453a" onclick="logout()">✕</button>
+            </div>
         </div>
     </div>
 
     <script>
-        // === НАСТРОЙКИ АДМИНА ===
+        // === НАСТРОЙКИ ===
         const ADMIN_LOGIN = 'admin';
         const ADMIN_PASS = '123';
-        
-        // ИМЯ ФАЙЛА КНИГИ (должен лежать рядом с index.html)
         const FILE_NAME = 'system_core.dat'; 
 
-        // Переменные состояния
+        // Переменные
         let pdfDoc = null;
         let pageNum = 1;
-        let scale = 1.0;
+        let scale = 1.0; // Базовый масштаб (будет пересчитан)
         let renderTask = null;
+        
+        // Для свайпов
+        let touchStartX = 0;
+        let touchEndX = 0;
 
-        // Инициализация
         window.onload = () => {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
             checkSession();
+            setupSwipe(); // Включаем свайпы
         };
 
         // === ЛОГИКА ВХОДА ===
@@ -155,9 +178,6 @@
             const p = document.getElementById('loginPass').value.trim();
             const err = document.getElementById('loginError');
 
-            if (!l || !p) { err.textContent = 'Введите логин и пароль'; return; }
-
-            // 1. Проверка админа
             if (l === ADMIN_LOGIN && p === ADMIN_PASS) {
                 localStorage.setItem('session', 'admin');
                 showScreen('adminScreen');
@@ -165,35 +185,23 @@
                 return;
             }
 
-            // 2. Проверка пользователей
             const users = getUsers();
-            const user = users.find(u => u.login === l && u.pass === p);
-
-            if (user) {
+            if (users.find(u => u.login === l && u.pass === p)) {
                 localStorage.setItem('session', 'user');
-                showScreen('readerScreen');
-                loadBook(); // ЗАПУСК ЗАГРУЗКИ
-            } else {
-                err.textContent = 'Неверные данные';
-            }
-        }
-
-        function logout() {
-            localStorage.removeItem('session');
-            location.reload();
-        }
-
-        function checkSession() {
-            const s = localStorage.getItem('session');
-            if (s === 'admin') {
-                showScreen('adminScreen');
-                renderUserList();
-            } else if (s === 'user') {
                 showScreen('readerScreen');
                 loadBook();
             } else {
-                showScreen('loginScreen');
+                err.textContent = 'Неверный логин или пароль';
             }
+        }
+
+        function logout() { localStorage.removeItem('session'); location.reload(); }
+
+        function checkSession() {
+            const s = localStorage.getItem('session');
+            if (s === 'admin') { showScreen('adminScreen'); renderUserList(); }
+            else if (s === 'user') { showScreen('readerScreen'); loadBook(); }
+            else { showScreen('loginScreen'); }
         }
 
         function showScreen(id) {
@@ -201,34 +209,25 @@
             document.getElementById(id).classList.add('active');
         }
 
-        // === ЛОГИКА АДМИНКИ (LocalStorage) ===
-        function getUsers() {
-            const u = localStorage.getItem('users');
-            return u ? JSON.parse(u) : [];
-        }
-
+        // === АДМИНКА ===
+        function getUsers() { return JSON.parse(localStorage.getItem('users') || '[]'); }
+        
         function addUser() {
             const l = document.getElementById('newLogin').value.trim();
             const p = document.getElementById('newPass').value.trim();
-            
             if (!l || !p) return alert('Заполните поля');
-            
             const users = getUsers();
-            if (users.find(u => u.login === l)) return alert('Такой логин уже есть');
-
+            if (users.find(u => u.login === l)) return alert('Логин занят');
             users.push({ login: l, pass: p });
             localStorage.setItem('users', JSON.stringify(users));
-            
+            renderUserList();
             document.getElementById('newLogin').value = '';
             document.getElementById('newPass').value = '';
-            renderUserList();
-            alert(`Пользователь ${l} добавлен!`);
         }
 
         function deleteUser(login) {
-            if (!confirm(`Удалить пользователя ${login}?`)) return;
-            let users = getUsers();
-            users = users.filter(u => u.login !== login);
+            if (!confirm('Удалить?')) return;
+            const users = getUsers().filter(u => u.login !== login);
             localStorage.setItem('users', JSON.stringify(users));
             renderUserList();
         }
@@ -236,44 +235,28 @@
         function renderUserList() {
             const list = document.getElementById('userList');
             const users = getUsers();
-            
-            if (users.length === 0) {
-                list.innerHTML = '<div style="color:#666; text-align:center; padding:20px;">Пока нет пользователей</div>';
-                return;
-            }
-
             list.innerHTML = users.map(u => `
                 <div class="user-item">
-                    <div>
-                        <div style="font-weight:bold; color:white;">👤 ${u.login}</div>
-                        <div style="font-size:12px; color:#888;">Пароль: ${u.pass}</div>
-                    </div>
+                    <div style="color:white; font-weight:bold">${u.login} <span style="font-weight:normal; color:#888; font-size:12px">(${u.pass})</span></div>
                     <button class="del-btn" onclick="deleteUser('${u.login}')">Удалить</button>
                 </div>
             `).join('');
         }
 
-        // === ЧИТАЛКА (ЗАГРУЗКА 50МБ) ===
+        // === ЗАГРУЗКА КНИГИ ===
         async function loadBook() {
-            const loader = document.getElementById('loader');
-            const text = document.getElementById('loaderText');
-            const bar = document.getElementById('progressBar');
-            
-            // Если книга уже загружена в память, не качаем снова
             if (pdfDoc) return;
-
+            const loader = document.getElementById('loader');
+            const bar = document.getElementById('progressBar');
+            const text = document.getElementById('loaderText');
             loader.style.display = 'flex';
 
             try {
-                // Качаем файл system_core.dat с отображением прогресса
                 const response = await fetch(FILE_NAME);
+                if (!response.ok) throw new Error('Файл не найден');
                 
-                if (!response.ok) throw new Error('Файл книги не найден (404)');
-
-                const contentLength = response.headers.get('content-length');
-                const total = parseInt(contentLength, 10);
+                const total = parseInt(response.headers.get('content-length'), 10);
                 let loaded = 0;
-
                 const reader = response.body.getReader();
                 const chunks = [];
 
@@ -282,84 +265,117 @@
                     if (done) break;
                     chunks.push(value);
                     loaded += value.length;
-                    
-                    if (total) {
-                        const percent = Math.round((loaded / total) * 100);
-                        bar.style.width = percent + '%';
-                        text.textContent = `Загрузка книги: ${percent}%`;
+                    if(total) {
+                        const pct = Math.round((loaded/total)*100);
+                        bar.style.width = pct + '%';
+                        text.textContent = `Загрузка: ${pct}%`;
                     }
                 }
 
-                text.textContent = 'Обработка...';
-                
-                // Создаем BLOB (файл в памяти)
                 const blob = new Blob(chunks, {type: 'application/pdf'});
                 const url = URL.createObjectURL(blob);
-
-                // Открываем через PDF.js
-                const loadingTask = pdfjsLib.getDocument(url);
-                pdfDoc = await loadingTask.promise;
                 
-                URL.revokeObjectURL(url); // Чистим память от ссылки
+                text.textContent = 'Обработка...';
+                const task = pdfjsLib.getDocument(url);
+                pdfDoc = await task.promise;
+                URL.revokeObjectURL(url);
+                
                 loader.style.display = 'none';
-                renderPage(pageNum);
-
-            } catch (error) {
-                console.error(error);
-                text.innerHTML = `<span style="color:#e74c3c">Ошибка загрузки!</span><br><br><small>Убедитесь, что файл ${FILE_NAME} на месте.</small>`;
+                
+                // Авто-подгон масштаба под ширину экрана при старте
+                fitToScreen();
+                
+            } catch (e) {
+                alert('Ошибка загрузки: ' + e.message);
             }
         }
 
-        // === ОТРИСОВКА СТРАНИЦ ===
+        // === ОТРИСОВКА (HD КАЧЕСТВО) ===
+        function fitToScreen() {
+            if (!pdfDoc) return;
+            pdfDoc.getPage(1).then(page => {
+                const viewport = page.getViewport({scale: 1.0});
+                const containerWidth = document.getElementById('viewport').clientWidth;
+                // Считаем масштаб, чтобы страница занимала 95% ширины экрана
+                scale = (containerWidth / viewport.width) * 0.95;
+                renderPage(pageNum);
+            });
+        }
+
         function renderPage(num) {
+            if (renderTask) renderTask.cancel();
+            
             pdfDoc.getPage(num).then(page => {
                 const canvas = document.getElementById('pdfCanvas');
                 const ctx = canvas.getContext('2d');
                 
-                // Подгоняем масштаб под ширину экрана
-                let viewport = page.getViewport({scale: scale});
-                const containerWidth = document.getElementById('viewport').clientWidth - 40;
-                
-                if (viewport.width > containerWidth) {
-                    scale = scale * (containerWidth / viewport.width);
-                    viewport = page.getViewport({scale: scale});
-                }
+                // ВАЖНО: Умножаем на devicePixelRatio для четкости на iPhone/Android
+                const pixelRatio = window.devicePixelRatio || 1;
+                const viewport = page.getViewport({ scale: scale * pixelRatio });
 
-                canvas.height = viewport.height;
                 canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                
+                // CSS заставляет канвас вписаться в экран, но пикселей внутри много -> четко
+                canvas.style.width = `${viewport.width / pixelRatio}px`;
+                canvas.style.height = `${viewport.height / pixelRatio}px`;
 
-                if (renderTask) renderTask.cancel();
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport,
+                    transform: [pixelRatio, 0, 0, pixelRatio, 0, 0] // Исправление для HiDPI
+                };
 
-                renderTask = page.render({canvasContext: ctx, viewport: viewport});
+                renderTask = page.render(renderContext);
                 renderTask.promise.then(() => {
-                    document.getElementById('pageInfo').textContent = `${num} / ${pdfDoc.numPages}`;
+                    document.getElementById('pageInfo').textContent = `${num}/${pdfDoc.numPages}`;
                 });
             });
         }
 
-        function changePage(delta) {
+        function changePage(d) {
             if (!pdfDoc) return;
-            const newPage = pageNum + delta;
+            const newPage = pageNum + d;
             if (newPage >= 1 && newPage <= pdfDoc.numPages) {
                 pageNum = newPage;
                 renderPage(pageNum);
+                // Прокрутка вверх при смене страницы
+                document.getElementById('viewport').scrollTop = 0;
             }
         }
 
-        function zoom(delta) {
-            scale += delta;
+        function zoom(d) {
+            scale += d;
             if (scale < 0.2) scale = 0.2;
             renderPage(pageNum);
         }
 
-        // === ЗАЩИТА ===
-        document.addEventListener('contextmenu', e => e.preventDefault());
-        document.addEventListener('keydown', e => {
-            if ((e.ctrlKey && (e.key === 's' || e.key === 'p')) || e.key === 'F12') {
-                e.preventDefault();
-            }
-        });
+        // === СВАЙПЫ (ЛИСТАНИЕ ПАЛЬЦЕМ) ===
+        function setupSwipe() {
+            const view = document.getElementById('viewport');
+            
+            view.addEventListener('touchstart', e => {
+                touchStartX = e.changedTouches[0].screenX;
+            });
 
+            view.addEventListener('touchend', e => {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            });
+        }
+
+        function handleSwipe() {
+            const limit = 50; // Минимальная длина свайпа
+            if (touchEndX < touchStartX - limit) {
+                changePage(1); // Свайп влево -> следующая
+            }
+            if (touchEndX > touchStartX + limit) {
+                changePage(-1); // Свайп вправо -> предыдущая
+            }
+        }
+
+        // Блокировка сохранения
+        document.addEventListener('contextmenu', e => e.preventDefault());
     </script>
 </body>
 </html>
