@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Защищенная читалка</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -18,6 +19,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
         }
 
         .container {
@@ -100,31 +102,83 @@
             font-size: 14px;
         }
 
+        /* PDF Reader */
         .reader-container {
             display: none;
             width: 100vw;
             height: 100vh;
-            background: #525659;
+            background: #2c2c2c;
             position: fixed;
             top: 0;
             left: 0;
+            flex-direction: column;
         }
 
         .reader-header {
-            background: #323639;
-            padding: 15px 20px;
+            background: #1a1a1a;
+            padding: 10px 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             color: white;
+            flex-shrink: 0;
         }
 
-        .pdf-viewer {
-            width: 100%;
-            height: calc(100vh - 60px);
+        .reader-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .control-btn {
+            background: #444;
+            color: white;
             border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            width: auto;
+            min-width: 40px;
         }
 
+        .control-btn:hover {
+            background: #555;
+        }
+
+        .control-btn:active {
+            background: #333;
+        }
+
+        .page-info {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .pdf-canvas-container {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            position: relative;
+        }
+
+        .pdf-wrapper {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        canvas {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            background: white;
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Admin Panel */
         .admin-panel {
             display: none;
             max-width: 1000px;
@@ -132,6 +186,8 @@
             background: white;
             border-radius: 12px;
             padding: 30px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .admin-section {
@@ -147,10 +203,12 @@
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
         .user-form input {
             flex: 1;
+            min-width: 150px;
         }
 
         .user-form button {
@@ -161,12 +219,21 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
+            overflow-x: auto;
+            display: block;
+        }
+
+        thead, tbody {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
         }
 
         th, td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #e1e8ed;
+            word-wrap: break-word;
         }
 
         th {
@@ -199,15 +266,39 @@
 
             .admin-panel {
                 padding: 20px;
+                max-height: 95vh;
             }
 
             table {
-                font-size: 14px;
+                font-size: 12px;
             }
 
             th, td {
-                padding: 8px;
+                padding: 8px 4px;
             }
+
+            .reader-header {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .reader-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .control-btn {
+                padding: 6px 10px;
+                font-size: 14px;
+                min-width: 35px;
+            }
+        }
+
+        .loading {
+            color: white;
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
         }
     </style>
 </head>
@@ -232,15 +323,27 @@
     <!-- PDF Reader -->
     <div class="reader-container" id="readerContainer">
         <div class="reader-header">
-            <h2>📖 Читалка</h2>
-            <button class="logout-btn" onclick="logout()">Выйти</button>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>📖 Читалка</span>
+                <span class="page-info" id="pageInfo">Страница 1 из 1</span>
+            </div>
+            <div class="reader-controls">
+                <button class="control-btn" onclick="zoomOut()">−</button>
+                <button class="control-btn" onclick="zoomIn()">+</button>
+                <button class="control-btn" onclick="prevPage()">◀</button>
+                <button class="control-btn" onclick="nextPage()">▶</button>
+                <button class="logout-btn control-btn" onclick="logout()">Выйти</button>
+            </div>
         </div>
-        <iframe class="pdf-viewer" id="pdfViewer"></iframe>
+        <div class="pdf-canvas-container" id="canvasContainer">
+            <div class="loading" id="loadingText">Загрузка PDF...</div>
+            <div class="pdf-wrapper" id="pdfWrapper"></div>
+        </div>
     </div>
 
     <!-- Админ панель -->
     <div class="admin-panel" id="adminPanel">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; flex-wrap: wrap; gap: 10px;">
             <h1>⚙️ Админ панель</h1>
             <button class="logout-btn" onclick="logout()">Выйти</button>
         </div>
@@ -275,7 +378,7 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getDatabase, ref, set, get, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+        import { getDatabase, ref, set, get, update, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyBNu8z3ltdKDSLqTHG5B9bfPh-eBSzp0R8",
@@ -290,10 +393,16 @@
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
 
-        // URL вашего PDF файла на GitHub Pages
         const PDF_URL = 'https://kluffio.github.io/YanaFlipBooksback/book.pdf';
 
-        // Инициализация базы данных
+        // PDF.js setup
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let scale = 1.5;
+        let isLandscape = false;
+
         async function initDatabase() {
             const adminRef = ref(database, 'users/admin');
             const snapshot = await get(adminRef);
@@ -351,7 +460,6 @@
                     return;
                 }
 
-                // Обновляем статистику
                 const deviceInfo = getDeviceInfo();
                 await update(userRef, {
                     visits: (userData.visits || 0) + 1,
@@ -374,21 +482,106 @@
             }
         };
 
-        function showReader() {
+        async function showReader() {
             document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('readerContainer').style.display = 'block';
+            document.getElementById('readerContainer').style.display = 'flex';
             
-            // Загружаем PDF
-            const iframe = document.getElementById('pdfViewer');
-            iframe.src = PDF_URL + '#toolbar=0&navpanes=0&scrollbar=0';
-            
-            // Блокируем скачивание
-            iframe.onload = function() {
-                try {
-                    iframe.contentWindow.document.addEventListener('contextmenu', e => e.preventDefault());
-                } catch(e) {}
-            };
+            checkOrientation();
+            await loadPDF();
         }
+
+        function checkOrientation() {
+            isLandscape = window.innerWidth > window.innerHeight;
+            if (pdfDoc) {
+                renderPages();
+            }
+        }
+
+        window.addEventListener('orientationchange', () => {
+            setTimeout(checkOrientation, 100);
+        });
+
+        window.addEventListener('resize', checkOrientation);
+
+        async function loadPDF() {
+            try {
+                const loadingTask = pdfjsLib.getDocument(PDF_URL);
+                pdfDoc = await loadingTask.promise;
+                document.getElementById('loadingText').style.display = 'none';
+                renderPages();
+            } catch (error) {
+                document.getElementById('loadingText').textContent = 'Ошибка загрузки PDF';
+                console.error(error);
+            }
+        }
+
+        async function renderPages() {
+            if (!pdfDoc) return;
+
+            const wrapper = document.getElementById('pdfWrapper');
+            wrapper.innerHTML = '';
+
+            const totalPages = pdfDoc.numPages;
+            const pagesToRender = isLandscape && currentPage < totalPages ? [currentPage, currentPage + 1] : [currentPage];
+
+            for (let pageNum of pagesToRender) {
+                if (pageNum > totalPages) break;
+                
+                const page = await pdfDoc.getPage(pageNum);
+                const viewport = page.getViewport({ scale });
+                
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+
+                await page.render(renderContext).promise;
+                wrapper.appendChild(canvas);
+            }
+
+            updatePageInfo();
+        }
+
+        function updatePageInfo() {
+            const totalPages = pdfDoc ? pdfDoc.numPages : 1;
+            const displayPage = isLandscape && currentPage < totalPages ? `${currentPage}-${currentPage + 1}` : currentPage;
+            document.getElementById('pageInfo').textContent = `Страница ${displayPage} из ${totalPages}`;
+        }
+
+        window.nextPage = function() {
+            if (!pdfDoc) return;
+            const increment = isLandscape ? 2 : 1;
+            if (currentPage + increment <= pdfDoc.numPages) {
+                currentPage += increment;
+                renderPages();
+            }
+        };
+
+        window.prevPage = function() {
+            if (!pdfDoc) return;
+            const decrement = isLandscape ? 2 : 1;
+            if (currentPage - decrement >= 1) {
+                currentPage -= decrement;
+                renderPages();
+            }
+        };
+
+        window.zoomIn = function() {
+            scale += 0.2;
+            if (scale > 3) scale = 3;
+            renderPages();
+        };
+
+        window.zoomOut = function() {
+            scale -= 0.2;
+            if (scale < 0.5) scale = 0.5;
+            renderPages();
+        };
 
         function showAdminPanel() {
             document.getElementById('loginContainer').style.display = 'none';
@@ -488,7 +681,6 @@
             }
         };
 
-        // Проверка сессии при загрузке
         window.addEventListener('load', () => {
             const currentUser = sessionStorage.getItem('currentUser');
             const isAdmin = sessionStorage.getItem('isAdmin') === 'true';
@@ -502,7 +694,6 @@
             }
         });
 
-        // Блокировка правой кнопки мыши и горячих клавиш
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.addEventListener('keydown', e => {
             if ((e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'u')) || e.key === 'F12') {
