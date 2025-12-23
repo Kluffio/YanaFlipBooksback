@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <title>Читалка</title>
 
+<!-- Telegram WebApp -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
@@ -11,14 +15,13 @@ html, body {
     margin: 0;
     padding: 0;
     background: #111;
+    color: white;
     height: 100%;
     overflow: hidden;
     user-select: none;
 }
 
-#blocked {
-    display: none;
-    color: white;
+#status {
     text-align: center;
     margin-top: 40vh;
     font-size: 18px;
@@ -26,6 +29,7 @@ html, body {
 }
 
 #viewer {
+    display: none;
     height: 100vh;
     overflow-y: auto;
 }
@@ -44,81 +48,102 @@ canvas {
 
 <body>
 
-<div id="blocked">Нет доступа</div>
+<div id="status">Проверяем доступ…</div>
 <div id="viewer"></div>
 
 <script>
-/* ====== СЕКРЕТНЫЙ КЛЮЧ ====== */
-const SECRET_KEY = "hdsfkljgfhdfighikujdfsghiuoergfhieurfgigdfgdsg1123dcfs!";
+/* ===== НАСТРОЙКИ ===== */
 
-/* ====== ПРОВЕРКА КЛЮЧА ====== */
-const params = new URLSearchParams(window.location.search);
-const key = params.get("key");
+// 👉 ВСТАВЬ СЮДА URL СВОЕГО СЕРВЕРА RENDER
+const CHECK_URL = "https://tg-channel-check.onrender.com";
 
-if (key !== SECRET_KEY) {
-    document.getElementById("blocked").style.display = "block";
-    throw new Error("Access denied");
+/* ===== TELEGRAM ===== */
+const tg = window.Telegram.WebApp;
+tg.expand();
+
+const userId = tg.initDataUnsafe?.user?.id;
+
+if (!userId) {
+    document.getElementById("status").innerText =
+        "Открывайте через Telegram";
+    throw new Error("Not Telegram");
 }
 
-// убираем ключ из адресной строки
-history.replaceState({}, "", location.pathname);
-
-/* ====== PDF.js ====== */
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-const PDF_FILE = "book.pdf";
-const viewer = document.getElementById("viewer");
-let pdfDoc = null;
-
-function isLandscape() {
-    return window.innerWidth > window.innerHeight;
-}
-
-function renderPDF() {
-    viewer.innerHTML = "";
-    let page = 1;
-    const perRow = isLandscape() ? 2 : 1;
-
-    function renderRow() {
-        if (page > pdfDoc.numPages) return;
-
-        const row = document.createElement("div");
-        row.className = "row";
-
-        for (let i = 0; i < perRow && page <= pdfDoc.numPages; i++) {
-            const current = page++;
-
-            pdfDoc.getPage(current).then(p => {
-                const vp = p.getViewport({ scale: 1.4 });
-                const canvas = document.createElement("canvas");
-                const ctx = canvas.getContext("2d");
-
-                canvas.width = vp.width;
-                canvas.height = vp.height;
-
-                row.appendChild(canvas);
-
-                p.render({
-                    canvasContext: ctx,
-                    viewport: vp
-                });
-            });
+/* ===== ПРОВЕРКА ПОДПИСКИ ===== */
+fetch(`${CHECK_URL}/check?user=${userId}`)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) {
+            document.getElementById("status").innerText =
+                "Нет доступа. Подпишитесь на канал.";
+        } else {
+            document.getElementById("status").style.display = "none";
+            document.getElementById("viewer").style.display = "block";
+            startReader();
         }
+    })
+    .catch(() => {
+        document.getElementById("status").innerText =
+            "Ошибка проверки доступа";
+    });
 
-        viewer.appendChild(row);
-        setTimeout(renderRow, 30);
+/* ===== PDF ЧИТАЛКА ===== */
+function startReader() {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    const PDF_FILE = "book.pdf";
+    const viewer = document.getElementById("viewer");
+    let pdfDoc = null;
+
+    function isLandscape() {
+        return window.innerWidth > window.innerHeight;
     }
 
-    renderRow();
+    function render() {
+        viewer.innerHTML = "";
+        let page = 1;
+        const perRow = isLandscape() ? 2 : 1;
+
+        function drawRow() {
+            if (page > pdfDoc.numPages) return;
+
+            const row = document.createElement("div");
+            row.className = "row";
+
+            for (let i = 0; i < perRow && page <= pdfDoc.numPages; i++) {
+                const current = page++;
+
+                pdfDoc.getPage(current).then(p => {
+                    const vp = p.getViewport({ scale: 1.4 });
+                    const canvas = document.createElement("canvas");
+                    const ctx = canvas.getContext("2d");
+
+                    canvas.width = vp.width;
+                    canvas.height = vp.height;
+                    row.appendChild(canvas);
+
+                    p.render({
+                        canvasContext: ctx,
+                        viewport: vp
+                    });
+                });
+            }
+
+            viewer.appendChild(row);
+            setTimeout(drawRow, 30);
+        }
+
+        drawRow();
+    }
+
+    pdfjsLib.getDocument(PDF_FILE).promise.then(pdf => {
+        pdfDoc = pdf;
+        render();
+    });
+
+    window.addEventListener("resize", render);
 }
-
-pdfjsLib.getDocument(PDF_FILE).promise.then(pdf => {
-    pdfDoc = pdf;
-    renderPDF();
-});
-
-window.addEventListener("resize", renderPDF);
 </script>
 
 </body>
