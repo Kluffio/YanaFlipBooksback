@@ -111,56 +111,15 @@
             position: fixed;
             top: 0;
             left: 0;
-            flex-direction: column;
-        }
-
-        .reader-header {
-            background: #1a1a1a;
-            padding: 10px 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: white;
-            flex-shrink: 0;
-        }
-
-        .reader-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .control-btn {
-            background: #444;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-            width: auto;
-            min-width: 40px;
-        }
-
-        .control-btn:hover {
-            background: #555;
-        }
-
-        .control-btn:active {
-            background: #333;
-        }
-
-        .page-info {
-            color: #aaa;
-            font-size: 14px;
         }
 
         .pdf-canvas-container {
-            flex: 1;
+            width: 100%;
+            height: 100%;
             overflow: auto;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
+            align-items: center;
             padding: 20px;
             position: relative;
         }
@@ -169,6 +128,7 @@
             display: flex;
             gap: 10px;
             justify-content: center;
+            align-items: center;
         }
 
         canvas {
@@ -176,6 +136,61 @@
             background: white;
             max-width: 100%;
             height: auto;
+        }
+
+        /* Floating Controls */
+        .reader-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 25px;
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            width: auto;
+            min-width: 45px;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .page-info {
+            color: #fff;
+            font-size: 14px;
+            padding: 0 15px;
+            white-space: nowrap;
+        }
+
+        .logout-btn {
+            background: rgba(231, 76, 60, 0.8);
+            border: 1px solid rgba(231, 76, 60, 0.5);
+        }
+
+        .logout-btn:hover {
+            background: rgba(231, 76, 60, 1);
         }
 
         /* Admin Panel */
@@ -242,12 +257,6 @@
             color: #333;
         }
 
-        .logout-btn {
-            background: #e74c3c;
-            padding: 8px 20px;
-            width: auto;
-        }
-
         .delete-btn {
             background: #e74c3c;
             padding: 6px 12px;
@@ -277,20 +286,23 @@
                 padding: 8px 4px;
             }
 
-            .reader-header {
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-
             .reader-controls {
-                width: 100%;
-                justify-content: space-between;
+                bottom: 20px;
+                padding: 12px 20px;
+                gap: 8px;
+                flex-wrap: wrap;
+                max-width: 90%;
             }
 
             .control-btn {
-                padding: 6px 10px;
+                padding: 8px 12px;
                 font-size: 14px;
-                min-width: 35px;
+                min-width: 40px;
+            }
+
+            .page-info {
+                font-size: 12px;
+                padding: 0 10px;
             }
         }
 
@@ -322,22 +334,19 @@
 
     <!-- PDF Reader -->
     <div class="reader-container" id="readerContainer">
-        <div class="reader-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span>📖 Читалка</span>
-                <span class="page-info" id="pageInfo">Страница 1 из 1</span>
-            </div>
-            <div class="reader-controls">
-                <button class="control-btn" onclick="zoomOut()">−</button>
-                <button class="control-btn" onclick="zoomIn()">+</button>
-                <button class="control-btn" onclick="prevPage()">◀</button>
-                <button class="control-btn" onclick="nextPage()">▶</button>
-                <button class="logout-btn control-btn" onclick="logout()">Выйти</button>
-            </div>
-        </div>
         <div class="pdf-canvas-container" id="canvasContainer">
             <div class="loading" id="loadingText">Загрузка PDF...</div>
             <div class="pdf-wrapper" id="pdfWrapper"></div>
+        </div>
+        
+        <!-- Floating Controls -->
+        <div class="reader-controls">
+            <button class="control-btn" onclick="zoomOut()">−</button>
+            <button class="control-btn" onclick="zoomIn()">+</button>
+            <span class="page-info" id="pageInfo">Страница 1 из 1</span>
+            <button class="control-btn" onclick="prevPage()">◀</button>
+            <button class="control-btn" onclick="nextPage()">▶</button>
+            <button class="logout-btn control-btn" onclick="logout()">Выйти</button>
         </div>
     </div>
 
@@ -345,7 +354,7 @@
     <div class="admin-panel" id="adminPanel">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; flex-wrap: wrap; gap: 10px;">
             <h1>⚙️ Админ панель</h1>
-            <button class="logout-btn" onclick="logout()">Выйти</button>
+            <button class="logout-btn" style="background: #e74c3c; padding: 8px 20px; width: auto;" onclick="logout()">Выйти</button>
         </div>
 
         <div class="admin-section">
@@ -376,7 +385,7 @@
         </div>
     </div>
 
-    <script type="module">
+    <script type="module" id="downloadScript">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getDatabase, ref, set, get, update, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
@@ -484,7 +493,7 @@
 
         async function showReader() {
             document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('readerContainer').style.display = 'flex';
+            document.getElementById('readerContainer').style.display = 'block';
             
             checkOrientation();
             await loadPDF();
@@ -522,7 +531,15 @@
             wrapper.innerHTML = '';
 
             const totalPages = pdfDoc.numPages;
-            const pagesToRender = isLandscape && currentPage < totalPages ? [currentPage, currentPage + 1] : [currentPage];
+            let pagesToRender = [];
+
+            // Первая страница (обложка) всегда одна
+            if (currentPage === 1) {
+                pagesToRender = [1];
+            } else {
+                // Для остальных страниц - разворот в ландшафте
+                pagesToRender = isLandscape && currentPage < totalPages ? [currentPage, currentPage + 1] : [currentPage];
+            }
 
             for (let pageNum of pagesToRender) {
                 if (pageNum > totalPages) break;
@@ -549,26 +566,45 @@
 
         function updatePageInfo() {
             const totalPages = pdfDoc ? pdfDoc.numPages : 1;
-            const displayPage = isLandscape && currentPage < totalPages ? `${currentPage}-${currentPage + 1}` : currentPage;
+            let displayPage;
+            
+            if (currentPage === 1) {
+                displayPage = '1';
+            } else {
+                displayPage = isLandscape && currentPage < totalPages ? `${currentPage}-${currentPage + 1}` : currentPage;
+            }
+            
             document.getElementById('pageInfo').textContent = `Страница ${displayPage} из ${totalPages}`;
         }
 
         window.nextPage = function() {
             if (!pdfDoc) return;
-            const increment = isLandscape ? 2 : 1;
-            if (currentPage + increment <= pdfDoc.numPages) {
-                currentPage += increment;
-                renderPages();
+            
+            // С первой страницы переходим на 2
+            if (currentPage === 1) {
+                currentPage = 2;
+            } else {
+                const increment = isLandscape ? 2 : 1;
+                if (currentPage + increment <= pdfDoc.numPages) {
+                    currentPage += increment;
+                }
             }
+            renderPages();
         };
 
         window.prevPage = function() {
             if (!pdfDoc) return;
-            const decrement = isLandscape ? 2 : 1;
-            if (currentPage - decrement >= 1) {
-                currentPage -= decrement;
-                renderPages();
+            
+            // На вторую страницу возвращаемся на 1
+            if (currentPage === 2) {
+                currentPage = 1;
+            } else {
+                const decrement = isLandscape ? 2 : 1;
+                if (currentPage - decrement >= 1) {
+                    currentPage -= decrement;
+                }
             }
+            renderPages();
         };
 
         window.zoomIn = function() {
