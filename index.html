@@ -1,150 +1,514 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>Читалка</title>
-
-<!-- Telegram WebApp -->
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<!-- PDF.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
-<style>
-html, body {
-    margin: 0;
-    padding: 0;
-    background: #111;
-    color: white;
-    height: 100%;
-    overflow: hidden;
-    user-select: none;
-}
-
-#status {
-    text-align: center;
-    margin-top: 40vh;
-    font-size: 18px;
-    opacity: 0.8;
-}
-
-#viewer {
-    display: none;
-    height: 100vh;
-    overflow-y: auto;
-}
-
-.row {
-    display: flex;
-    justify-content: center;
-}
-
-canvas {
-    margin: 10px;
-    max-width: 100%;
-}
-</style>
-</head>
-
-<body>
-
-<div id="status">Проверяем доступ…</div>
-<div id="viewer"></div>
-
-<script>
-/* ===== НАСТРОЙКИ ===== */
-
-// 👉 ВСТАВЬ СЮДА URL СВОЕГО СЕРВЕРА RENDER
-const CHECK_URL = "https://tg-channel-check.onrender.com";
-
-/* ===== TELEGRAM ===== */
-const tg = window.Telegram.WebApp;
-tg.expand();
-
-const userId = tg.initDataUnsafe?.user?.id;
-
-if (!userId) {
-    document.getElementById("status").innerText =
-        "Открывайте через Telegram";
-    throw new Error("Not Telegram");
-}
-
-/* ===== ПРОВЕРКА ПОДПИСКИ ===== */
-fetch(`${CHECK_URL}/check?user=${userId}`)
-    .then(r => r.json())
-    .then(data => {
-        if (!data.ok) {
-            document.getElementById("status").innerText =
-                "Нет доступа. Подпишитесь на канал.";
-        } else {
-            document.getElementById("status").style.display = "none";
-            document.getElementById("viewer").style.display = "block";
-            startReader();
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Защищенная читалка</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    })
-    .catch(() => {
-        document.getElementById("status").innerText =
-            "Ошибка проверки доступа";
-    });
 
-/* ===== PDF ЧИТАЛКА ===== */
-function startReader() {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-    const PDF_FILE = "book.pdf";
-    const viewer = document.getElementById("viewer");
-    let pdfDoc = null;
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
 
-    function isLandscape() {
-        return window.innerWidth > window.innerHeight;
-    }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
 
-    function render() {
-        viewer.innerHTML = "";
-        let page = 1;
-        const perRow = isLandscape() ? 2 : 1;
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+            font-size: 24px;
+        }
 
-        function drawRow() {
-            if (page > pdfDoc.numPages) return;
+        .form-group {
+            margin-bottom: 20px;
+        }
 
-            const row = document.createElement("div");
-            row.className = "row";
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
 
-            for (let i = 0; i < perRow && page <= pdfDoc.numPages; i++) {
-                const current = page++;
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
 
-                pdfDoc.getPage(current).then(p => {
-                    const vp = p.getViewport({ scale: 1.4 });
-                    const canvas = document.createElement("canvas");
-                    const ctx = canvas.getContext("2d");
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
 
-                    canvas.width = vp.width;
-                    canvas.height = vp.height;
-                    row.appendChild(canvas);
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
 
-                    p.render({
-                        canvasContext: ctx,
-                        viewport: vp
-                    });
-                });
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .success {
+            color: #27ae60;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .reader-container {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            background: #525659;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        .reader-header {
+            background: #323639;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .pdf-viewer {
+            width: 100%;
+            height: calc(100vh - 60px);
+            border: none;
+        }
+
+        .admin-panel {
+            display: none;
+            max-width: 1000px;
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+        }
+
+        .admin-section {
+            margin-bottom: 30px;
+        }
+
+        .admin-section h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .user-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .user-form input {
+            flex: 1;
+        }
+
+        .user-form button {
+            flex: 0 0 150px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e8ed;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .logout-btn {
+            background: #e74c3c;
+            padding: 8px 20px;
+            width: auto;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            padding: 6px 12px;
+            font-size: 14px;
+            width: auto;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .card {
+                padding: 30px 20px;
             }
 
-            viewer.appendChild(row);
-            setTimeout(drawRow, 30);
+            .admin-panel {
+                padding: 20px;
+            }
+
+            table {
+                font-size: 14px;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Форма входа -->
+    <div class="container" id="loginContainer">
+        <div class="card">
+            <h1>🔐 Вход в систему</h1>
+            <div class="form-group">
+                <label>Логин</label>
+                <input type="text" id="loginUsername" placeholder="Введите логин">
+            </div>
+            <div class="form-group">
+                <label>Пароль</label>
+                <input type="password" id="loginPassword" placeholder="Введите пароль">
+            </div>
+            <button onclick="login()">Войти</button>
+            <div id="loginError" class="error"></div>
+        </div>
+    </div>
+
+    <!-- PDF Reader -->
+    <div class="reader-container" id="readerContainer">
+        <div class="reader-header">
+            <h2>📖 Читалка</h2>
+            <button class="logout-btn" onclick="logout()">Выйти</button>
+        </div>
+        <iframe class="pdf-viewer" id="pdfViewer"></iframe>
+    </div>
+
+    <!-- Админ панель -->
+    <div class="admin-panel" id="adminPanel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <h1>⚙️ Админ панель</h1>
+            <button class="logout-btn" onclick="logout()">Выйти</button>
+        </div>
+
+        <div class="admin-section">
+            <h2>Добавить пользователя</h2>
+            <div class="user-form">
+                <input type="text" id="newUsername" placeholder="Логин">
+                <input type="password" id="newPassword" placeholder="Пароль">
+                <button onclick="addUser()">Добавить</button>
+            </div>
+            <div id="addUserMessage"></div>
+        </div>
+
+        <div class="admin-section">
+            <h2>Список пользователей</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Логин</th>
+                        <th>Визиты</th>
+                        <th>Последний визит</th>
+                        <th>Устройство</th>
+                        <th>Браузер</th>
+                        <th>Действие</th>
+                    </tr>
+                </thead>
+                <tbody id="usersList"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set, get, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBNu8z3ltdKDSLqTHG5B9bfPh-eBSzp0R8",
+            authDomain: "yanabook-28c57.firebaseapp.com",
+            databaseURL: "https://yanabook-28c57-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "yanabook-28c57",
+            storageBucket: "yanabook-28c57.firebasestorage.app",
+            messagingSenderId: "32202124636",
+            appId: "1:32202124636:web:0fac008ce817a4cfd5ba7d"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        // URL вашего PDF файла на GitHub Pages
+        const PDF_URL = 'https://kluffio.github.io/YanaFlipBooksback/book.pdf';
+
+        // Инициализация базы данных
+        async function initDatabase() {
+            const adminRef = ref(database, 'users/admin');
+            const snapshot = await get(adminRef);
+            
+            if (!snapshot.exists()) {
+                await set(adminRef, {
+                    password: '123',
+                    isAdmin: true,
+                    visits: 0,
+                    createdAt: new Date().toISOString()
+                });
+            }
         }
 
-        drawRow();
-    }
+        initDatabase();
 
-    pdfjsLib.getDocument(PDF_FILE).promise.then(pdf => {
-        pdfDoc = pdf;
-        render();
-    });
+        function getDeviceInfo() {
+            const ua = navigator.userAgent;
+            let device = 'Desktop';
+            let browser = 'Unknown';
 
-    window.addEventListener("resize", render);
-}
-</script>
+            if (/mobile/i.test(ua)) device = 'Mobile';
+            if (/tablet|ipad/i.test(ua)) device = 'Tablet';
 
+            if (ua.indexOf('Firefox') > -1) browser = 'Firefox';
+            else if (ua.indexOf('Chrome') > -1) browser = 'Chrome';
+            else if (ua.indexOf('Safari') > -1) browser = 'Safari';
+            else if (ua.indexOf('Edge') > -1) browser = 'Edge';
+
+            return { device, browser };
+        }
+
+        window.login = async function() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorDiv = document.getElementById('loginError');
+
+            if (!username || !password) {
+                errorDiv.textContent = 'Заполните все поля';
+                return;
+            }
+
+            try {
+                const userRef = ref(database, `users/${username}`);
+                const snapshot = await get(userRef);
+
+                if (!snapshot.exists()) {
+                    errorDiv.textContent = 'Неверный логин или пароль';
+                    return;
+                }
+
+                const userData = snapshot.val();
+                if (userData.password !== password) {
+                    errorDiv.textContent = 'Неверный логин или пароль';
+                    return;
+                }
+
+                // Обновляем статистику
+                const deviceInfo = getDeviceInfo();
+                await update(userRef, {
+                    visits: (userData.visits || 0) + 1,
+                    lastVisit: new Date().toISOString(),
+                    lastDevice: deviceInfo.device,
+                    lastBrowser: deviceInfo.browser
+                });
+
+                sessionStorage.setItem('currentUser', username);
+                sessionStorage.setItem('isAdmin', userData.isAdmin || false);
+
+                if (userData.isAdmin) {
+                    showAdminPanel();
+                } else {
+                    showReader();
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Ошибка подключения';
+                console.error(error);
+            }
+        };
+
+        function showReader() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('readerContainer').style.display = 'block';
+            
+            // Загружаем PDF
+            const iframe = document.getElementById('pdfViewer');
+            iframe.src = PDF_URL + '#toolbar=0&navpanes=0&scrollbar=0';
+            
+            // Блокируем скачивание
+            iframe.onload = function() {
+                try {
+                    iframe.contentWindow.document.addEventListener('contextmenu', e => e.preventDefault());
+                } catch(e) {}
+            };
+        }
+
+        function showAdminPanel() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+            loadUsers();
+        }
+
+        window.logout = function() {
+            sessionStorage.clear();
+            location.reload();
+        };
+
+        window.addUser = async function() {
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newPassword').value;
+            const messageDiv = document.getElementById('addUserMessage');
+
+            if (!username || !password) {
+                messageDiv.className = 'error';
+                messageDiv.textContent = 'Заполните все поля';
+                return;
+            }
+
+            if (username === 'admin') {
+                messageDiv.className = 'error';
+                messageDiv.textContent = 'Невозможно создать пользователя с таким логином';
+                return;
+            }
+
+            try {
+                const userRef = ref(database, `users/${username}`);
+                const snapshot = await get(userRef);
+
+                if (snapshot.exists()) {
+                    messageDiv.className = 'error';
+                    messageDiv.textContent = 'Пользователь уже существует';
+                    return;
+                }
+
+                await set(userRef, {
+                    password: password,
+                    isAdmin: false,
+                    visits: 0,
+                    createdAt: new Date().toISOString()
+                });
+
+                messageDiv.className = 'success';
+                messageDiv.textContent = 'Пользователь успешно добавлен';
+                document.getElementById('newUsername').value = '';
+                document.getElementById('newPassword').value = '';
+
+                setTimeout(() => messageDiv.textContent = '', 3000);
+                loadUsers();
+            } catch (error) {
+                messageDiv.className = 'error';
+                messageDiv.textContent = 'Ошибка добавления';
+                console.error(error);
+            }
+        };
+
+        async function loadUsers() {
+            const usersRef = ref(database, 'users');
+            const snapshot = await get(usersRef);
+            const tbody = document.getElementById('usersList');
+            tbody.innerHTML = '';
+
+            if (snapshot.exists()) {
+                const users = snapshot.val();
+                for (let username in users) {
+                    const user = users[username];
+                    const row = tbody.insertRow();
+                    
+                    row.innerHTML = `
+                        <td>${username}</td>
+                        <td>${user.visits || 0}</td>
+                        <td>${user.lastVisit ? new Date(user.lastVisit).toLocaleString('ru-RU') : 'Никогда'}</td>
+                        <td>${user.lastDevice || '-'}</td>
+                        <td>${user.lastBrowser || '-'}</td>
+                        <td>
+                            ${username !== 'admin' ? `<button class="delete-btn" onclick="deleteUser('${username}')">Удалить</button>` : '-'}
+                        </td>
+                    `;
+                }
+            }
+        }
+
+        window.deleteUser = async function(username) {
+            if (!confirm(`Удалить пользователя ${username}?`)) return;
+
+            try {
+                const userRef = ref(database, `users/${username}`);
+                await remove(userRef);
+                loadUsers();
+            } catch (error) {
+                alert('Ошибка удаления');
+                console.error(error);
+            }
+        };
+
+        // Проверка сессии при загрузке
+        window.addEventListener('load', () => {
+            const currentUser = sessionStorage.getItem('currentUser');
+            const isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+
+            if (currentUser) {
+                if (isAdmin) {
+                    showAdminPanel();
+                } else {
+                    showReader();
+                }
+            }
+        });
+
+        // Блокировка правой кнопки мыши и горячих клавиш
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'u')) || e.key === 'F12') {
+                e.preventDefault();
+            }
+        });
+    </script>
 </body>
 </html>
